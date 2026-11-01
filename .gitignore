@@ -1,0 +1,41 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+**/application-local.yml
+**/application-local.yaml
+**/application-prod.yml
+**/application-prod.yaml
+*.pem
+*.key
+*.p12
+*.jks
+credentials*
+
+# Generated files and local tooling
+**/node_modules/
+**/target/
+**/dist/
+**/.idea/
+**/.vscode/
+**/.agents/
+**/.codex/
+**/tmp/
+**/logs/
+**/.tmp/
+*.log
+*.tsbuildinfo
+*.rdb
+*.pid
+.DS_Store
+Thumbs.db
+
+# Local data and backups
+uploads/
+data/
+*.sql.gz
+*.sql.zip
+*.dump

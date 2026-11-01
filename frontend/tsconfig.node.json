@@ -1,0 +1,26 @@
+{
+  "include": [
+    "vite.config.*",
+    "vitest.config.*",
+    "cypress.config.*",
+    "nightwatch.conf.*",
+    "playwright.config.*"
+  ],
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": true,
+    "tsBuildInfoFile": "./tsconfig.node.tsbuildinfo",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2023"
+    ],
+    "target": "ES2022",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
