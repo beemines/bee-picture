@@ -12,7 +12,7 @@ const port = Number(process.env.DEMO_PORT || 8130)
 const origin = `http://127.0.0.1:${port}`
 const permissions = ['spaceUser:manage', 'picture:view', 'picture:upload', 'picture:edit', 'picture:delete']
 const user = { id: 10001, userAccount: 'demo_admin', userName: '演示管理员', userRole: 'admin',
-  userAvatar: `${origin}/demo-assets/logo.svg`, userProfile: '文档演示账号', createTime: '2026-01-01T09:00:00' }
+  userAvatar: `${origin}/demo-assets/logo.png`, userProfile: '文档演示账号', createTime: '2026-01-01T09:00:00' }
 const space = { id: 20001, spaceName: '设计协作素材库', spaceType: 1, spaceLevel: 1, userId: 10001,
   maxSize: 10737418240, totalSize: 2147483648, maxCount: 1000, totalCount: 126,
   permissionList: permissions, user, createTime: '2026-01-10T09:00:00' }
@@ -68,10 +68,10 @@ http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
   if (url.pathname.startsWith('/demo-assets/')) {
     const name = path.basename(url.pathname)
-    if (!/^(art-\d+|logo)\.svg$/.test(name)) { res.writeHead(404); res.end(); return }
+    if (!/^(art-\d+\.svg|logo\.png)$/.test(name)) { res.writeHead(404); res.end(); return }
     const file = path.join(directory, 'assets', name)
     if (!fs.existsSync(file)) { res.writeHead(404); res.end(); return }
-    res.setHeader('Content-Type', 'image/svg+xml')
+    res.setHeader('Content-Type', name.endsWith('.png') ? 'image/png' : 'image/svg+xml')
     fs.createReadStream(file).pipe(res)
     return
   }

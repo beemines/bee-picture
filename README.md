@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="frontend/public/favicon.svg" width="80" alt="Bee Picture logo" />
+  <img src="docs/images/logo.png" width="64" alt="Bee Picture 原站点蜜蜂标识" />
   <h1>Bee Picture 智能云图库</h1>
   <p>从图片收集到团队协作，把素材放在有条理的地方</p>
   <p>
@@ -12,7 +12,7 @@
   <p><a href="#功能导览">功能导览</a> · <a href="#快速开始">快速开始</a> · <a href="#只看界面与文档演示">只看界面</a> · <a href="docs/configuration.md">配置指南</a> · <a href="SECURITY.md">安全说明</a></p>
 </div>
 
-![智能云图库首页](docs/images/gallery.jpg)
+![智能云图库首页](docs/images/gallery-bee.jpg)
 
 ## 项目介绍
 
@@ -34,7 +34,7 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 - 图片卡片、缩略图和分页浏览。
 - 公共图库与空间内图片分别组织，空间权限由后端校验。
 
-![图片浏览与检索](docs/images/gallery.jpg)
+![图片浏览与检索](docs/images/gallery-bee.jpg)
 
 ### 2 图片详情与共享
 
@@ -42,7 +42,7 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 
 分享链接沿用当前访问权限，不会自动把私有空间图片改成公开资源。
 
-![图片详情与信息](docs/images/detail.jpg)
+![图片详情与信息](docs/images/detail-bee.jpg)
 
 ### 3 图片上传 编辑与 AI 扩图入口
 
@@ -53,13 +53,13 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 - 裁剪、编辑与批量元信息修改。
 - AI 扩图需要单独配置 API Key 和服务权限，可能产生费用；配图只展示操作界面，未调用真实生成任务。
 
-![上传与图片编辑](docs/images/editor.jpg)
+![上传与图片编辑](docs/images/editor-bee.jpg)
 
 ### 4 个人空间与团队素材库
 
 空间为图片提供独立的组织边界。个人空间用于管理自己的素材，团队空间用于汇集共同使用的图片。空间拥有容量与图片数量配额，并提供组合检索、颜色筛选、批量编辑等操作入口。
 
-![团队素材空间](docs/images/space.jpg)
+![团队素材空间](docs/images/space-bee.jpg)
 
 ### 5 成员角色与协作
 
@@ -67,7 +67,7 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 
 协作链路依赖会话 Cookie、WebSocket 握手和实际反向代理配置；文档截图不代表已经完成多用户并发与生产压力验证。
 
-![空间成员与角色](docs/images/team.jpg)
+![空间成员与角色](docs/images/team-bee.jpg)
 
 ### 6 空间统计与可视化
 
@@ -75,7 +75,7 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 
 图表通过 ECharts 呈现，数据由后端分析接口聚合；下图中的数值均为演示数据。
 
-![空间使用统计](docs/images/analytics.jpg)
+![空间使用统计](docs/images/analytics-bee.jpg)
 
 ### 7 管理端与图片审核
 
@@ -83,13 +83,13 @@ Bee Picture 是一个前后端分离的图片管理与协作项目。它把分�
 
 管理员权限必须在自己的环境中配置；仓库不提供可登录真实后端的默认管理员账号或生产数据。
 
-![图片管理与审核](docs/images/admin.jpg)
+![图片管理与审核](docs/images/admin-bee.jpg)
 
 ### 8 账号入口
 
 用户通过注册和登录建立会话，登录后再进入个人空间或团队空间。当前实现采用 Spring Session + Redis 和 Sa-Token 的组合，生产使用前应按安全说明升级密码方案、初始密码策略与登录风控。
 
-![用户登录界面](docs/images/login.jpg)
+![用户登录界面](docs/images/login-bee.jpg)
 
 ## 系统架构
 
@@ -214,6 +214,6 @@ bee-picture/
 
 欢迎提交 Issue 或 Pull Request，贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。请不要提交自己的密钥、存储桶信息、真实用户数据或无授权图片。
 
-本项目是图片管理与全栈开发的学习实践，业务实现参考编程导航 / 鱼皮图库项目的学习思路。README 的展示组织参考了 [Immich](https://github.com/immich-app/immich) 和 [Karakeep](https://github.com/karakeep-app/karakeep) 的功能预览、截图与入门文档结构，未复用其产品截图或文案。
+README 的展示组织参考了 [Immich](https://github.com/immich-app/immich) 和 [Karakeep](https://github.com/karakeep-app/karakeep) 的功能预览、截图与入门文档结构，未复用其产品截图或文案。
 
-感谢 Vue、Spring Boot、Ant Design Vue、MyBatis-Plus、Sa-Token、ECharts 等开源项目。代码按 [MIT License](LICENSE) 发布；第三方依赖及其商标遵循各自许可，MIT 不授予任何第三方图片的使用权。`docs/demo/assets` 的几何插画和项目 logo 随本仓库按 MIT 提供。
+感谢 Vue、Spring Boot、Ant Design Vue、MyBatis-Plus、Sa-Token、ECharts 等开源项目。代码按 [MIT License](LICENSE) 发布；第三方依赖及其商标遵循各自许可，MIT 不授予任何第三方图片的使用权。`docs/demo/assets` 的几何插画随本仓库按 MIT 提供。项目 logo 沿用原站点的蜜蜂标识。

@@ -4,7 +4,7 @@
       <a-col flex="200px">
         <router-link to="/">
           <div class="title-bar">
-            <img src="../assets/logo.svg" alt="logo" />
+            <img src="../assets/logo.ico" alt="logo" />
             <div class="title">智能云图库</div>
           </div>
         </router-link>
