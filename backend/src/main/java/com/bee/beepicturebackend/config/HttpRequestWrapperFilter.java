@@ -1,8 +1,7 @@
 package com.bee.beepicturebackend.config;
 
-import cn.hutool.http.ContentType;
-import cn.hutool.http.Header;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 
 import javax.servlet.*;
@@ -22,8 +21,8 @@ public class HttpRequestWrapperFilter implements Filter {
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws ServletException, IOException {
         if (request instanceof HttpServletRequest) {
             HttpServletRequest servletRequest = (HttpServletRequest) request;
-            String contentType = servletRequest.getHeader(Header.CONTENT_TYPE.getValue());
-            if (ContentType.JSON.getValue().equals(contentType)) {
+            String contentType = servletRequest.getContentType();
+            if (contentType != null && MediaType.APPLICATION_JSON.isCompatibleWith(MediaType.parseMediaType(contentType))) {
                 // 可以再细粒度一些，只有需要进行空间权限校验的接口才需要包一层
                 chain.doFilter(new RequestWrapper(servletRequest), response);
             } else {

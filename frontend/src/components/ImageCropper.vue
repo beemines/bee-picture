@@ -1,7 +1,7 @@
 <template>
   <a-modal
     class="image-cropper"
-    v-model:visible="visible"
+    v-model:open="visible"
     title="编辑图片"
     :footer="false"
     @cancel="closeModal"

@@ -203,10 +203,11 @@ bee-picture/
 
 ## 验证与已知限制
 
-- 后端验证：`cd backend && mvn -DskipTests package`。已有 Spring 上下文测试需要自己的数据库、Redis 和 COS 配置，CI 构建不等于这些集成测试通过。
-- 前端验证：`cd frontend && npm run build`，包括类型检查及生产打包。
+- 后端验证：在 `backend` 目录执行 `mvn test` 或 `mvn package`，默认运行不依赖个人数据库、Redis 或云服务的回归测试。原 Spring 上下文测试标记为 `integration`；准备好自己的环境后，可用 `mvn -Dtest=BeePictureBackendApplicationTests -Dtest.excludedGroups= test` 显式运行。
+- 前端验证：在 `frontend` 目录执行 `npm test`，再执行 `npm run build`，分别检查交互回归、类型和生产打包。
 - 发布检查：`python scripts/check_release.py`，检查常见私密值、禁止提交的本地文件和 README 图片引用。
 - 文档演示覆盖页面渲染、示例图片与只读筛选；真实 COS 上传、外部搜图、AI 扩图和多用户协同需在自己的环境验证。
+- 本次真实前后端联调的逐项结果与未通过项目见 [功能测试记录](docs/functional-testing.md)。自动化单元测试通过不代表外部服务可用。
 - 外部搜图依赖第三方页面与服务，接口可能变化；云服务需要自己的凭据、网络条件与付费额度。
 - 当前实现的密码方案、固定初始密码、URL 上传和公网部署风险见 [SECURITY.md](SECURITY.md)。
 

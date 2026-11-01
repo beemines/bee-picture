@@ -1,5 +1,5 @@
 <template>
-  <a-modal v-model:visible="visible" title="批量编辑图片" :footer="false" @cancel="closeModal">
+  <a-modal v-model:open="visible" title="批量编辑图片" :footer="false" @cancel="closeModal">
     <a-typography-paragraph type="secondary">* 只对当前页面的图片生效</a-typography-paragraph>
     <!-- 表单项 -->
     <a-form layout="vertical" :model="formData" @finish="handleSubmit">

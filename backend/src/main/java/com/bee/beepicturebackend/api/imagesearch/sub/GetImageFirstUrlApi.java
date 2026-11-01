@@ -2,8 +2,10 @@ package com.bee.beepicturebackend.api.imagesearch.sub;
 
 import com.bee.beepicturebackend.exception.BusinessException;
 import com.bee.beepicturebackend.exception.ErrorCode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
+import org.jsoup.HttpStatusException;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -13,6 +15,9 @@ import java.util.regex.Pattern;
 
 @Slf4j
 public class GetImageFirstUrlApi {
+
+    private static final Pattern FIRST_URL = Pattern.compile("\"firstUrl\"\\s*:\\s*(\"(?:\\\\.|[^\"\\\\])*\")");
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     /**
      * 获取图片列表页面地址
@@ -26,6 +31,9 @@ public class GetImageFirstUrlApi {
             Document document = Jsoup.connect(url)
                     .timeout(5000)
                     .get();
+            if (document.title().contains("安全验证")) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "以图搜图服务要求安全验证，暂时无法完成搜索，请稍后重试");
+            }
 
             // 获取所有 <script> 标签
             Elements scriptElements = document.getElementsByTag("script");
@@ -35,21 +43,25 @@ public class GetImageFirstUrlApi {
                 String scriptContent = script.html();
                 if (scriptContent.contains("\"firstUrl\"")) {
                     // 正则表达式提取 firstUrl 的值
-                    Pattern pattern = Pattern.compile("\"firstUrl\"\\s*:\\s*\"(.*?)\"");
-                    Matcher matcher = pattern.matcher(scriptContent);
+                    Matcher matcher = FIRST_URL.matcher(scriptContent);
                     if (matcher.find()) {
-                        String firstUrl = matcher.group(1);
-                        // 处理转义字符
-                        firstUrl = firstUrl.replace("\\/", "/");
-                        return firstUrl;
+                        String firstUrl = JSON_MAPPER.readValue(matcher.group(1), String.class);
+                        if (!firstUrl.trim().isEmpty()) {
+                            return firstUrl;
+                        }
                     }
                 }
             }
 
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未找到 url");
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "以图搜图服务未返回图片结果，请更换图片或稍后重试");
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (HttpStatusException exception) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "以图搜图服务暂不可用（HTTP " + exception.getStatusCode() + "），请稍后重试");
         } catch (Exception e) {
-            log.error("搜索失败", e);
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "搜索失败");
+            log.warn("以图搜图结果页请求失败，异常类型={}", e.getClass().getSimpleName());
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "以图搜图服务连接或响应异常，请稍后重试");
         }
     }
 

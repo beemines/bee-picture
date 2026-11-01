@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bee.beepicturebackend.exception.BusinessException;
 import com.bee.beepicturebackend.exception.ErrorCode;
 import com.bee.beepicturebackend.exception.ThrowUtils;
+import com.bee.beepicturebackend.manager.auth.SpaceUserAuthManager;
+import com.bee.beepicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.bee.beepicturebackend.mapper.SpaceMapper;
 import com.bee.beepicturebackend.model.dto.space.analyze.*;
 import com.bee.beepicturebackend.model.entity.Picture;
@@ -36,6 +38,8 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
     private SpaceService spaceService;
     @Resource
     private PictureService pictureService;
+    @Resource
+    private SpaceUserAuthManager spaceUserAuthManager;
 
     /**
      * 获取空间使用分析数据
@@ -79,8 +83,7 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
 
-            // 权限校验：仅空间所有者或管理员可访问
-            spaceService.checkSpaceAuth(loginUser, space);
+            checkSpaceAnalyzeAuth(space, loginUser);
 
             // 构造返回结果
             SpaceUsageAnalyzeResponse response = new SpaceUsageAnalyzeResponse();
@@ -255,13 +258,23 @@ public class SpaceAnalyzeServiceImpl extends ServiceImpl<SpaceMapper, Space>
             // 全空间分析或者公共图库权限校验：仅管理员可访问
             ThrowUtils.throwIf(!userService.isAdmin(loginUser), ErrorCode.NO_AUTH_ERROR, "无权访问公共图库");
         } else {
-            // 私有空间权限校验
+            // 指定空间权限校验
             Long spaceId = spaceAnalyzeRequest.getSpaceId();
             ThrowUtils.throwIf(spaceId == null || spaceId <= 0, ErrorCode.PARAMS_ERROR);
             Space space = spaceService.getById(spaceId);
             ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
-            spaceService.checkSpaceAuth(loginUser, space);
+            checkSpaceAnalyzeAuth(space, loginUser);
         }
+    }
+
+    private void checkSpaceAnalyzeAuth(Space space, User loginUser) {
+        // 保留系统管理员的现有访问范围；其他用户按空间成员管理权限查看分析。
+        if (userService.isAdmin(loginUser)) {
+            return;
+        }
+        ThrowUtils.throwIf(!spaceUserAuthManager.getPermissionList(space, loginUser)
+                        .contains(SpaceUserPermissionConstant.SPACE_USER_MANAGE),
+                ErrorCode.NO_AUTH_ERROR, "无权访问空间分析");
     }
 
     private static void fillAnalyzeQueryWrapper(SpaceAnalyzeRequest spaceAnalyzeRequest, QueryWrapper<Picture> queryWrapper) {

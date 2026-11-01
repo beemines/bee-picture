@@ -91,6 +91,7 @@ const searchParams = reactive<API.PictureQueryRequest>({
 
 // 获取数据
 const doSearch = () => {
+  searchParams.current = 1
   props.onSearch?.({ ...searchParams })
 }
 
@@ -156,7 +157,7 @@ const doClear = () => {
   searchParams.sortField = 'createTime'
   searchParams.sortOrder = 'descend'
   dateRange.value = []
-  props.onSearch?.(searchParams)
+  doSearch()
 }
 
 const formatOptions = ref([

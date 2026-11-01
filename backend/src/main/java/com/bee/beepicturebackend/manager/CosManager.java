@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.io.File;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,11 +87,55 @@ public class CosManager {
     /**
      * 删除对象
      *
-     * @param key 文件 key
+     * @param key 文件 key，或配置域名下的完整 URL
      */
     public void deleteObject(String key) throws CosClientException {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        if (key.contains("://") || key.startsWith("//")) {
+            key = getObjectKeyFromUrl(key);
+        }
+        if (key == null || key.isBlank() || "/".equals(key)) {
+            return;
+        }
         cosClient.deleteObject(cosClientConfig.getBucket(), key);
     }
 
+    /** 将配置域名下的公开 URL 转为 SDK 对象键；其他来源不属于当前存储命名空间。 */
+    public String getObjectKeyFromUrl(String url) {
+        if (url == null || url.isBlank() || cosClientConfig.getHost() == null || cosClientConfig.getHost().isBlank()) {
+            return null;
+        }
+        try {
+            URI configured = URI.create(cosClientConfig.getHost());
+            URI object = URI.create(url);
+            if (configured.getHost() == null || object.getHost() == null
+                    || object.getUserInfo() != null || configured.getUserInfo() != null
+                    || !("https".equalsIgnoreCase(object.getScheme()) || "http".equalsIgnoreCase(object.getScheme()))
+                    || !object.getScheme().equalsIgnoreCase(configured.getScheme())
+                    || !object.getHost().equalsIgnoreCase(configured.getHost())
+                    || effectivePort(object) != effectivePort(configured)) {
+                return null;
+            }
+            String prefix = configured.getPath();
+            while (prefix.endsWith("/")) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+            }
+            // URI.getPath 解码一次百分号转义，保留字面量 +，也不会二次解码 %25。
+            String path = object.getPath();
+            if (path == null || !path.startsWith(prefix + "/")) {
+                return null;
+            }
+            String key = path.substring(prefix.length() + 1);
+            return key.isBlank() || "/".equals(key) ? null : key;
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private int effectivePort(URI uri) {
+        return uri.getPort() >= 0 ? uri.getPort() : "https".equalsIgnoreCase(uri.getScheme()) ? 443 : 80;
+    }
 
 }

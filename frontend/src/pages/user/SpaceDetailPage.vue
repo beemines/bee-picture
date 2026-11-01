@@ -13,7 +13,7 @@
           + 创建图片
         </a-button>
         <a-button
-          v-if="canManageSpaceUser"
+          v-if="space.spaceType === SPACE_TYPE_ENUM.TEAM && canManageSpaceUser"
           type="primary"
           ghost
           :icon="h(TeamOutlined)"
@@ -48,11 +48,11 @@
     </a-flex>
     <div style="margin-bottom: 16px" />
     <!-- 搜索表单 -->
-    <PictureSearchForm :onSearch="onSearch" />
+    <PictureSearchForm :key="id" :onSearch="onSearch" />
     <div style="margin-bottom: 16px" />
     <!-- 按颜色搜索，跟其他搜索条件独立 -->
     <a-form-item label="按颜色搜索">
-      <color-picker format="hex" @pureColorChange="onColorChange" />
+      <color-picker :key="id" format="hex" @pureColorChange="onColorChange" />
     </a-form-item>
     <!-- 图片列表 -->
     <PictureList
@@ -95,7 +95,7 @@ import { ColorPicker } from 'vue3-colorpicker'
 import 'vue3-colorpicker/style.css'
 import BatchEditPictureModal from '@/components/BatchEditPictureModal.vue'
 import { BarChartOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons-vue'
-import { SPACE_PERMISSION_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
+import { SPACE_PERMISSION_ENUM, SPACE_TYPE_ENUM, SPACE_TYPE_MAP } from '@/constants/space.ts'
 
 interface Props {
   id: string | number
@@ -118,18 +118,23 @@ const canEditPicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_EDI
 const canDeletePicture = createPermissionChecker(SPACE_PERMISSION_ENUM.PICTURE_DELETE)
 
 // -------- 获取空间详情 --------
+let spaceDetailRequest = 0
 const fetchSpaceDetail = async () => {
+  const request = ++spaceDetailRequest
+  const spaceId = props.id
   try {
     const res = await getSpaceVoByIdUsingGet({
-      id: props.id,
+      id: spaceId,
     })
+    if (request !== spaceDetailRequest || spaceId !== props.id) return
     if (res.data.code === 0 && res.data.data) {
       space.value = res.data.data
     } else {
       message.error('获取空间详情失败，' + res.data.message)
     }
-  } catch (e: any) {
-    message.error('获取空间详情失败：' + e.message)
+  } catch (error) {
+    if (request !== spaceDetailRequest || spaceId !== props.id) return
+    message.error('获取空间详情失败：' + (error instanceof Error ? error.message : '请稍后重试'))
   }
 }
 
@@ -145,29 +150,43 @@ const total = ref(0)
 const loading = ref(true)
 
 // 搜索条件
-const searchParams = ref<API.PictureQueryRequest>({
+const defaultSearchParams = (): API.PictureQueryRequest => ({
   current: 1,
   pageSize: 12,
   sortField: 'createTime',
   sortOrder: 'descend',
 })
+const searchParams = ref<API.PictureQueryRequest>(defaultSearchParams())
+let pictureRequest = 0
 
 // 获取数据
 const fetchData = async () => {
+  const request = ++pictureRequest
+  const spaceId = props.id
   loading.value = true
-  // 转换搜索参数
   const params = {
-    spaceId: props.id,
     ...searchParams.value,
+    spaceId,
   }
-  const res = await listPictureVoByPageUsingPost(params)
-  if (res.data.code === 0 && res.data.data) {
-    dataList.value = res.data.data.records ?? []
-    total.value = res.data.data.total ?? 0
-  } else {
-    message.error('获取数据失败，' + res.data.message)
+  try {
+    const res = await listPictureVoByPageUsingPost(params)
+    if (request !== pictureRequest || spaceId !== props.id) return
+    if (res.data.code === 0 && res.data.data) {
+      dataList.value = res.data.data.records ?? []
+      total.value = Number(res.data.data.total ?? 0)
+    } else {
+      dataList.value = []
+      total.value = 0
+      message.error('获取数据失败，' + res.data.message)
+    }
+  } catch {
+    if (request !== pictureRequest || spaceId !== props.id) return
+    dataList.value = []
+    total.value = 0
+    message.error('获取数据失败，请稍后重试')
+  } finally {
+    if (request === pictureRequest && spaceId === props.id) loading.value = false
   }
-  loading.value = false
 }
 
 // 页面加载时获取数据，请求一次
@@ -184,32 +203,41 @@ const onPageChange = (page: number, pageSize: number) => {
 
 // 搜索
 const onSearch = (newSearchParams: API.PictureQueryRequest) => {
-  console.log('new', newSearchParams)
-
   searchParams.value = {
-    ...searchParams.value,
+    ...defaultSearchParams(),
     ...newSearchParams,
     current: 1,
   }
-  console.log('searchparams', searchParams.value)
   fetchData()
 }
 
 // 按照颜色搜索
 const onColorChange = async (color: string) => {
+  const request = ++pictureRequest
+  const spaceId = props.id
   loading.value = true
-  const res = await searchPictureByColorUsingPost({
-    picColor: color,
-    spaceId: props.id,
-  })
-  if (res.data.code === 0 && res.data.data) {
-    const data = res.data.data ?? []
-    dataList.value = data
-    total.value = data.length
-  } else {
-    message.error('获取数据失败，' + res.data.message)
+  try {
+    const res = await searchPictureByColorUsingPost({
+      picColor: color,
+      spaceId,
+    })
+    if (request !== pictureRequest || spaceId !== props.id) return
+    if (res.data.code === 0 && res.data.data) {
+      dataList.value = res.data.data
+      total.value = res.data.data.length
+    } else {
+      dataList.value = []
+      total.value = 0
+      message.error('获取数据失败，' + res.data.message)
+    }
+  } catch {
+    if (request !== pictureRequest || spaceId !== props.id) return
+    dataList.value = []
+    total.value = 0
+    message.error('获取数据失败，请稍后重试')
+  } finally {
+    if (request === pictureRequest && spaceId === props.id) loading.value = false
   }
-  loading.value = false
 }
 
 // ---- 批量编辑图片 -----
@@ -230,7 +258,11 @@ const doBatchEdit = () => {
 // 空间 id 改变时，必须重新获取数据
 watch(
   () => props.id,
-  (newSpaceId) => {
+  () => {
+    space.value = {}
+    dataList.value = []
+    total.value = 0
+    searchParams.value = defaultSearchParams()
     fetchSpaceDetail()
     fetchData()
   },

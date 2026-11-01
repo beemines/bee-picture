@@ -77,7 +77,9 @@
         />
       </a-form-item>
       <a-form-item>
-        <a-button type="primary" html-type="submit" style="width: 100%">创建</a-button>
+        <a-button type="primary" html-type="submit" :loading="submitting" style="width: 100%">
+          {{ submitText }}
+        </a-button>
       </a-form-item>
     </a-form>
   </div>
@@ -102,6 +104,9 @@ import { getSpaceVoByIdUsingGet } from '@/api/spaceController.ts'
 
 const router = useRouter()
 const route = useRoute()
+const isEditing = computed(() => !!queryValue(route.query.id))
+const submitText = computed(() => isEditing.value ? '保存修改' : '创建')
+const submitting = ref(false)
 
 const picture = ref<API.PictureVO>()
 const pictureForm = reactive<API.PictureEditRequest>({})
@@ -124,26 +129,31 @@ const onSuccess = (newPicture: API.PictureVO) => {
  * 提交表单
  * @param values
  */
-const handleSubmit = async (values: any) => {
-  console.log(values)
+const handleSubmit = async (values: API.PictureEditRequest) => {
+  if (submitting.value) return
   const pictureId = picture.value?.id
   if (!pictureId) {
     return
   }
-  const res = await editPictureUsingPost({
-    id: pictureId,
-    spaceId: spaceId.value,
-    ...values,
-  })
-  // 操作成功
-  if (res.data.code === 0 && res.data.data) {
-    message.success('创建成功')
-    // 跳转到图片详情页
-    router.push({
-      path: `/picture/${pictureId}`,
-    })
-  } else {
-    message.error('创建失败，' + res.data.message)
+  const action = isEditing.value ? '保存' : '创建'
+  submitting.value = true
+  try {
+    const params = {
+      id: pictureId,
+      spaceId: spaceId.value,
+      ...values,
+    }
+    const res = await editPictureUsingPost(params)
+    if (res.data.code === 0 && res.data.data) {
+      message.success(`${action}成功`)
+      await router.push({ path: `/picture/${pictureId}` })
+    } else {
+      message.error(`${action}失败，` + (res.data.message || '请稍后重试'))
+    }
+  } catch {
+    message.error(`${action}失败，服务器暂时不可用，请稍后重试`)
+  } finally {
+    submitting.value = false
   }
 }
 

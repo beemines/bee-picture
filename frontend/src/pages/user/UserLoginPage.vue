@@ -23,18 +23,19 @@
       </div>
 
       <a-form-item>
-        <a-button type="primary" html-type="submit" style="width: 100%">登录</a-button>
+        <a-button type="primary" html-type="submit" :loading="submitting" style="width: 100%">登录</a-button>
       </a-form-item>
     </a-form>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useLoginUserStore } from '@/stores/useLoginUserStore.ts'
 import { userLoginUsingPost } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
+import { getSafeLoginRedirect } from '@/utils/loginRedirect'
 
 const formState = reactive<API.UserLoginRequest>({
   userAccount: '',
@@ -42,24 +43,31 @@ const formState = reactive<API.UserLoginRequest>({
 })
 
 const router = useRouter()
+const route = useRoute()
 const loginUserStore = useLoginUserStore()
+const submitting = ref(false)
 
 /**
  * 提交表单
  * @param values
  */
-const handleSubmit = async (values: any) => {
-  const res = await userLoginUsingPost(values)
-  // 登录成功，把登录态保存到全局状态中
-  if (res.data.code === 0 && res.data.data) {
-    await loginUserStore.fetchLoginUser()
-    message.success('登录成功')
-    router.push({
-      path: '/',
-      replace: true,
-    })
-  } else {
-    message.error('登录失败，' + res.data.message)
+const handleSubmit = async (values: API.UserLoginRequest) => {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    const res = await userLoginUsingPost(values)
+    if (res.data.code === 0 && res.data.data?.id) {
+      loginUserStore.setLoginUser(res.data.data)
+      message.success('登录成功')
+      const redirect = getSafeLoginRedirect(route.query.redirect, window.location.origin)
+      await router.replace(router.resolve(redirect).matched.length ? redirect : '/')
+    } else {
+      message.error('登录失败，' + (res.data.message || '请检查账号和密码'))
+    }
+  } catch {
+    message.error('登录失败，服务器暂时不可用，请稍后重试')
+  } finally {
+    submitting.value = false
   }
 }
 

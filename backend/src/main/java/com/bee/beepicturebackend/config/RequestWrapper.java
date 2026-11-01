@@ -1,49 +1,40 @@
 package com.bee.beepicturebackend.config;
 
-import lombok.extern.slf4j.Slf4j;
-
 import javax.servlet.ReadListener;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 包装请求，使 InputStream 可以重复读取
  *
  * @author pine
  */
-@Slf4j
 public class RequestWrapper extends HttpServletRequestWrapper {
 
-    private final String body;
+    private final byte[] body;
 
-    public RequestWrapper(HttpServletRequest request) {
+    public RequestWrapper(HttpServletRequest request) throws IOException {
         super(request);
-        StringBuilder stringBuilder = new StringBuilder();
-        try (InputStream inputStream = request.getInputStream(); BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
-            char[] charBuffer = new char[128];
-            int bytesRead = -1;
-            while ((bytesRead = bufferedReader.read(charBuffer)) > 0) {
-                stringBuilder.append(charBuffer, 0, bytesRead);
-            }
-        } catch (IOException ignored) {
+        try (InputStream inputStream = request.getInputStream()) {
+            body = inputStream.readAllBytes();
         }
-        body = stringBuilder.toString();
     }
 
     @Override
     public ServletInputStream getInputStream() throws IOException {
-        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(body.getBytes());
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(body);
         return new ServletInputStream() {
             @Override
             public boolean isFinished() {
-                return false;
+                return byteArrayInputStream.available() == 0;
             }
 
             @Override
             public boolean isReady() {
-                return false;
+                return true;
             }
 
             @Override
@@ -60,11 +51,11 @@ public class RequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public BufferedReader getReader() throws IOException {
-        return new BufferedReader(new InputStreamReader(this.getInputStream()));
+        return new BufferedReader(new InputStreamReader(this.getInputStream(), StandardCharsets.UTF_8));
     }
 
     public String getBody() {
-        return this.body;
+        return new String(this.body, StandardCharsets.UTF_8);
     }
 
 }

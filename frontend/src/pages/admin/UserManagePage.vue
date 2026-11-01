@@ -59,15 +59,21 @@
     <a-modal
       v-model:open="open"
       :title="isEdit ? '编辑用户' : '添加用户'"
+      :confirm-loading="submitting"
+      :cancel-button-props="{ disabled: submitting }"
+      :closable="!submitting"
+      :mask-closable="!submitting"
+      :keyboard="!submitting"
       @ok="handleModalOk"
       @cancel="handleModalCancel"
     >
       <a-form :model="formState" layout="vertical">
-        <a-form-item label="账号">
+        <a-form-item label="账号" name="userAccount" :rules="isEdit ? [] : accountRules">
           <a-input
             v-model:value="formState.userAccount"
             placeholder="请输入账号"
             :disabled="isEdit"
+            :maxlength="256"
           />
         </a-form-item>
         <a-form-item label="用户名">
@@ -157,6 +163,11 @@ const open = ref(false)
 
 // 是否为编辑
 const isEdit = ref(false)
+const submitting = ref(false)
+const accountRules = [
+  { required: true, whitespace: true, message: '请输入账号' },
+  { min: 4, max: 256, message: '账号长度应为 4 至 256 位' },
+]
 
 // 表单数据
 const formState = reactive<API.UserAddRequest & API.UserUpdateRequest>({
@@ -180,14 +191,18 @@ const resetForm = () => {
 
 // 获取数据
 const fetchData = async () => {
-  const res = await listUserVoByPageUsingPost({
-    ...searchParams,
-  })
-  if (res.data.code === 0 && res.data.data) {
-    dataList.value = res.data.data.records ?? []
-    total.value = res.data.data.total ?? 0
-  } else {
-    message.error('获取数据失败，' + res.data.message)
+  try {
+    const res = await listUserVoByPageUsingPost({
+      ...searchParams,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      dataList.value = res.data.data.records ?? []
+      total.value = Number(res.data.data.total ?? 0)
+    } else {
+      message.error('获取数据失败，' + res.data.message)
+    }
+  } catch {
+    message.error('获取数据失败，请稍后重试')
   }
 }
 
@@ -258,43 +273,51 @@ const doUpdate = (record: API.UserVO) => {
 
 // 弹窗确定
 const handleModalOk = async () => {
-  if (isEdit.value) {
-    const res = await updateUserUsingPost({
-      id: formState.id,
+  if (submitting.value) return
+  if (!isEdit.value) {
+    const account = formState.userAccount ?? ''
+    if (!account.trim()) {
+      message.error('请输入账号')
+      return
+    }
+    if (account.length < 4 || account.length > 256) {
+      message.error('账号长度应为 4 至 256 位')
+      return
+    }
+  }
+  if (!['user', 'admin'].includes(formState.userRole ?? '')) {
+    message.error('请选择有效的用户角色')
+    return
+  }
+  const action = isEdit.value ? '编辑' : '添加'
+  submitting.value = true
+  try {
+    const details = {
       userName: formState.userName,
       userAvatar: formState.userAvatar,
       userProfile: formState.userProfile,
       userRole: formState.userRole,
-    })
-
-    if (res.data.code === 0) {
-      message.success('编辑成功')
-      open.value = false
-      fetchData()
-    } else {
-      message.error('编辑失败：' + res.data.message)
     }
-  } else {
-    const res = await addUserUsingPost({
-      userAccount: formState.userAccount,
-      userName: formState.userName,
-      userAvatar: formState.userAvatar,
-      userProfile: formState.userProfile,
-      userRole: formState.userRole,
-    })
-
+    const res = isEdit.value
+      ? await updateUserUsingPost({ id: formState.id, ...details })
+      : await addUserUsingPost({ userAccount: formState.userAccount, ...details })
     if (res.data.code === 0) {
-      message.success('添加成功')
+      message.success(`${action}成功`)
       open.value = false
-      fetchData()
+      await fetchData()
     } else {
-      message.error('添加失败：' + res.data.message)
+      message.error(`${action}失败：${res.data.message}`)
     }
+  } catch {
+    message.error(`${action}失败，请稍后重试`)
+  } finally {
+    submitting.value = false
   }
 }
 
 // 弹窗取消
 const handleModalCancel = () => {
+  if (submitting.value) return
   open.value = false
 }
 </script>

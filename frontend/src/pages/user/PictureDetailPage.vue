@@ -74,7 +74,7 @@
             <a-button v-if="canEdit" :icon="h(EditOutlined)" type="default" @click="doEdit">
               编辑
             </a-button>
-            <a-button v-if="canDelete" :icon="h(DeleteOutlined)" danger @click="doDelete">
+            <a-button v-if="canDelete" :icon="h(DeleteOutlined)" :loading="deleting" danger @click="doDelete">
               删除
             </a-button>
           </a-space>
@@ -106,6 +106,7 @@ interface Props {
 
 const props = defineProps<Props>()
 const picture = ref<API.PictureVO>({})
+const deleting = ref(false)
 
 // 通用权限检查函数
 function createPermissionChecker(permission: string) {
@@ -153,15 +154,24 @@ const doEdit = () => {
 
 // 删除数据
 const doDelete = async () => {
-  const id = picture.value.id
+  if (deleting.value) return
+  const { id, spaceId } = picture.value
   if (!id) {
     return
   }
-  const res = await deletePictureUsingPost({ id })
-  if (res.data.code === 0) {
-    message.success('删除成功')
-  } else {
-    message.error('删除失败')
+  deleting.value = true
+  try {
+    const res = await deletePictureUsingPost({ id })
+    if (res.data.code === 0) {
+      message.success('删除成功')
+      await router.replace(spaceId ? `/space/${spaceId}` : '/')
+    } else {
+      message.error('删除失败，' + (res.data.message || '请稍后重试'))
+    }
+  } catch {
+    message.error('删除失败，服务器暂时不可用，请稍后重试')
+  } finally {
+    deleting.value = false
   }
 }
 

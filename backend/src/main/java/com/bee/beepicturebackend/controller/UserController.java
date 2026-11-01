@@ -1,5 +1,7 @@
 package com.bee.beepicturebackend.controller;
 
+import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bee.beepicturebackend.annotation.AuthCheck;
 import com.bee.beepicturebackend.common.BaseResponse;
@@ -11,10 +13,12 @@ import com.bee.beepicturebackend.exception.ErrorCode;
 import com.bee.beepicturebackend.exception.ThrowUtils;
 import com.bee.beepicturebackend.model.dto.user.*;
 import com.bee.beepicturebackend.model.entity.User;
+import com.bee.beepicturebackend.model.enums.UserRoleEnum;
 import com.bee.beepicturebackend.model.vo.LoginUserVO;
 import com.bee.beepicturebackend.model.vo.UserVO;
 import com.bee.beepicturebackend.service.UserService;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -69,12 +73,30 @@ public class UserController {
     @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest) {
         ThrowUtils.throwIf(userAddRequest == null, ErrorCode.PARAMS_ERROR);
+        String userAccount = userAddRequest.getUserAccount();
+        ThrowUtils.throwIf(StrUtil.isBlank(userAccount), ErrorCode.PARAMS_ERROR, "请输入账号");
+        ThrowUtils.throwIf(userAccount.length() < 4, ErrorCode.PARAMS_ERROR, "用户账号不能少于 4 位");
+        ThrowUtils.throwIf(userAccount.length() > 256, ErrorCode.PARAMS_ERROR, "用户账号不能超过 256 位");
+        String userRole = userAddRequest.getUserRole();
+        if (userRole == null) {
+            userRole = UserRoleEnum.USER.getValue();
+        }
+        validateUserRole(userRole);
+        QueryWrapper<User> accountQuery = new QueryWrapper<>();
+        accountQuery.eq("userAccount", userAccount);
+        ThrowUtils.throwIf(userService.count(accountQuery) > 0, ErrorCode.PARAMS_ERROR, "账号已存在");
         User user = new User();
         BeanUtils.copyProperties(userAddRequest, user);
+        user.setUserRole(userRole);
         final String DEFAULT_PASSWORD = "12345678";
         String encryptPassword = userService.getEncryptPassword(DEFAULT_PASSWORD);
         user.setUserPassword(encryptPassword);
-        boolean result = userService.save(user);
+        boolean result;
+        try {
+            result = userService.save(user);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号已存在");
+        }
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(user.getId());
     }
@@ -101,11 +123,18 @@ public class UserController {
         if(userUpdateRequest==null||userUpdateRequest.getId()==null){
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        if (userUpdateRequest.getUserRole() != null) {
+            validateUserRole(userUpdateRequest.getUserRole());
+        }
         User user = new User();
         BeanUtils.copyProperties(userUpdateRequest,user);
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result,ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+    private void validateUserRole(String userRole) {
+        ThrowUtils.throwIf(UserRoleEnum.getEnumByValue(userRole) == null, ErrorCode.PARAMS_ERROR, "用户角色无效");
     }
 
     @PostMapping("/list/page/vo")

@@ -24,22 +24,19 @@ public class GetImageListApi {
     public static List<ImageSearchResult> getImageList(String url) {
         try {
             // 发起GET请求
-            HttpResponse response = HttpUtil.createGet(url).execute();
-
-            // 获取响应内容
-            int statusCode = response.getStatus();
-            String body = response.body();
-
-            // 处理响应
-            if (statusCode == 200) {
-                // 解析 JSON 数据并处理
-                return processResponse(body);
-            } else {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "接口调用失败");
+            try (HttpResponse response = HttpUtil.createGet(url).timeout(5000).execute()) {
+                int statusCode = response.getStatus();
+                if (statusCode != 200) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                            "以图搜图服务暂不可用（HTTP " + statusCode + "），请稍后重试");
+                }
+                return processResponse(response.body());
             }
+        } catch (BusinessException exception) {
+            throw exception;
         } catch (Exception e) {
-            log.error("获取图片列表失败", e);
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "获取图片列表失败");
+            log.warn("以图搜图图片列表请求失败，异常类型={}", e.getClass().getSimpleName());
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "以图搜图服务连接或响应异常，请稍后重试");
         }
     }
 
@@ -51,14 +48,16 @@ public class GetImageListApi {
     private static List<ImageSearchResult> processResponse(String responseBody) {
         // 解析响应对象
         JSONObject jsonObject = new JSONObject(responseBody);
-        if (!jsonObject.containsKey("data")) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未获取到图片列表");
+        Integer status = jsonObject.getInt("status");
+        if (status != null && status != 0) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR,
+                    "以图搜图服务拒绝请求（状态码 " + status + "），请稍后重试");
         }
-        JSONObject data = jsonObject.getJSONObject("data");
-        if (!data.containsKey("list")) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未获取到图片列表");
+        Object data = jsonObject.get("data");
+        if (!(data instanceof JSONObject) || !(((JSONObject) data).get("list") instanceof JSONArray)) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "以图搜图服务未返回图片列表，请更换图片或稍后重试");
         }
-        JSONArray list = data.getJSONArray("list");
+        JSONArray list = ((JSONObject) data).getJSONArray("list");
         return JSONUtil.toList(list, ImageSearchResult.class);
     }
 

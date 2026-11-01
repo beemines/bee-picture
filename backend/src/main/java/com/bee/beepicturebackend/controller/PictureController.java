@@ -19,7 +19,6 @@ import com.bee.beepicturebackend.exception.BusinessException;
 import com.bee.beepicturebackend.exception.ErrorCode;
 import com.bee.beepicturebackend.exception.ThrowUtils;
 import com.bee.beepicturebackend.manager.auth.SpaceUserAuthManager;
-import com.bee.beepicturebackend.manager.auth.StpKit;
 import com.bee.beepicturebackend.manager.auth.annotation.SaSpaceCheckPermission;
 import com.bee.beepicturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.bee.beepicturebackend.model.dto.picture.*;
@@ -27,28 +26,26 @@ import com.bee.beepicturebackend.model.entity.Picture;
 import com.bee.beepicturebackend.model.entity.Space;
 import com.bee.beepicturebackend.model.entity.User;
 import com.bee.beepicturebackend.model.enums.PictureReviewStatusEnum;
+import com.bee.beepicturebackend.model.enums.SpaceRoleEnum;
 import com.bee.beepicturebackend.model.vo.PictureTagCategory;
 import com.bee.beepicturebackend.model.vo.PictureVO;
 import com.bee.beepicturebackend.service.PictureService;
 import com.bee.beepicturebackend.service.SpaceService;
 import com.bee.beepicturebackend.service.UserService;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/picture")
@@ -59,15 +56,6 @@ public class PictureController {
     private UserService userService;
     @Resource
     private PictureService pictureService;
-    @Resource
-    private StringRedisTemplate stringRedisTemplate;
-
-    private final Cache<String, String> LOCAL_CACHE =
-            Caffeine.newBuilder().initialCapacity(1024)
-                    .maximumSize(10000L)
-                    // 缓存 5 分钟移除
-                    .expireAfterWrite(5L, TimeUnit.MINUTES)
-                    .build();
     @Resource
     private SpaceService spaceService;
     @Resource
@@ -170,23 +158,34 @@ public class PictureController {
         // 查询数据库
         Picture picture = pictureService.getById(id);
         ThrowUtils.throwIf(picture == null, ErrorCode.NOT_FOUND_ERROR);
-        //空间权限校验
-        Long spaceId = picture.getSpaceId();
-        Space space = null;
-        if(spaceId != null){
-            //已经改为使用鉴权注解
-            //User loginUser = userService.getLoginUser(request);
-            //pictureService.checkPictureAuth(loginUser, picture);
-            boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
-            ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
-        }
-        //获取权限列表
         User loginUser = userService.getLoginUser(request);
+        List<String> permissionList = getPictureViewPermissions(picture, loginUser);
         PictureVO pictureVO = pictureService.getPictureVO(picture, request);
-        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
         pictureVO.setPermissionList(permissionList);
-        // 获取封装类
         return ResultUtils.success(pictureVO);
+    }
+
+    private List<String> getPictureViewPermissions(Picture picture, User loginUser) {
+        // 根据图片的实际归属获取权限，不能由请求中的其他空间参数决定。
+        Long spaceId = picture.getSpaceId();
+        if (spaceId == null) {
+            // 公共图片仅作者和系统管理员可管理，其他用户仅可查看。
+            if (loginUser.getId().equals(picture.getUserId()) || userService.isAdmin(loginUser)) {
+                return spaceUserAuthManager.getPermissionsByRole(SpaceRoleEnum.ADMIN.getValue());
+            }
+            ThrowUtils.throwIf(!Integer.valueOf(PictureReviewStatusEnum.PASS.getValue()).equals(picture.getReviewStatus()),
+                    ErrorCode.NO_AUTH_ERROR, "图片尚未通过审核");
+            return Collections.singletonList(SpaceUserPermissionConstant.PICTURE_VIEW);
+        }
+        List<String> permissionList = getSpacePermissions(spaceId, loginUser);
+        ThrowUtils.throwIf(!permissionList.contains(SpaceUserPermissionConstant.PICTURE_VIEW), ErrorCode.NO_AUTH_ERROR);
+        return permissionList;
+    }
+
+    private List<String> getSpacePermissions(Long spaceId, User loginUser) {
+        Space space = spaceService.getById(spaceId);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR, "空间不存在");
+        return spaceUserAuthManager.getPermissionList(space, loginUser);
     }
 
     /**
@@ -220,15 +219,9 @@ public class PictureController {
             pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
             pictureQueryRequest.setNullSpaceId(true);
         }else{
-            //已经改为使用鉴权注解
-//            User loginUser = userService.getLoginUser(request);
-//            Space space = spaceService.getById(spaceId);
-//            ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR,"空间不存在");
-//            if(!loginUser.getId().equals(space.getUserId())){
-//                throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "没有空间权限");
-//            }
-            boolean hasPermission = StpKit.SPACE.hasPermission(SpaceUserPermissionConstant.PICTURE_VIEW);
-            ThrowUtils.throwIf(!hasPermission, ErrorCode.NO_AUTH_ERROR);
+            User loginUser = userService.getLoginUser(request);
+            List<String> permissions = getSpacePermissions(spaceId, loginUser);
+            ThrowUtils.throwIf(!permissions.contains(SpaceUserPermissionConstant.PICTURE_VIEW), ErrorCode.NO_AUTH_ERROR);
         }
         // 查询数据库
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
@@ -238,7 +231,7 @@ public class PictureController {
     }
 
     /**
-     * 多级缓存分页获取图片列表
+     * 兼容旧版缓存列表接口，沿用普通列表的权限和审核范围
      * @param pictureQueryRequest
      * @param request
      * @return
@@ -247,48 +240,8 @@ public class PictureController {
     @PostMapping("/list/page/vo/cache")
     public BaseResponse<Page<PictureVO>> listPictureVOByPageWithCache(@RequestBody PictureQueryRequest pictureQueryRequest,
                                                                       HttpServletRequest request) {
-        long current = pictureQueryRequest.getCurrent();
-        long size = pictureQueryRequest.getPageSize();
-        // 限制爬虫
-        ThrowUtils.throwIf(size > 100, ErrorCode.PARAMS_ERROR);
-        // 普通用户默认只能查看已过审的数据
-        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-
-        // 构建缓存 key
-        String queryCondition = JSONUtil.toJsonStr(pictureQueryRequest);
-        String hashKey = DigestUtils.md5DigestAsHex(queryCondition.getBytes());
-        String cacheKey = "beepicture:listPictureVOByPage:" + hashKey;
-
-        // 1. 查询本地缓存（Caffeine）
-        String cachedValue = LOCAL_CACHE.getIfPresent(cacheKey);
-        if (cachedValue != null) {
-            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachedPage);
-        }
-
-        // 2. 查询分布式缓存（Redis）
-        ValueOperations<String, String> valueOps = stringRedisTemplate.opsForValue();
-        cachedValue = valueOps.get(cacheKey);
-        if (cachedValue != null) {
-            // 如果命中 Redis，存入本地缓存并返回
-            LOCAL_CACHE.put(cacheKey, cachedValue);
-            Page<PictureVO> cachedPage = JSONUtil.toBean(cachedValue, Page.class);
-            return ResultUtils.success(cachedPage);
-        }
-
-        // 3. 查询数据库
-        Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
-                pictureService.getQueryWrapper(pictureQueryRequest));
-        Page<PictureVO> pictureVOPage = pictureService.getPictureVOPage(picturePage, request);
-
-        // 4. 更新缓存
-        String cacheValue = JSONUtil.toJsonStr(pictureVOPage);
-        // 更新本地缓存
-        LOCAL_CACHE.put(cacheKey, cacheValue);
-        // 更新 Redis 缓存，设置过期时间为 5 分钟
-        valueOps.set(cacheKey, cacheValue, 5, TimeUnit.MINUTES);
-        // 返回结果
-        return ResultUtils.success(pictureVOPage);
+        // 保留兼容接口，统一使用实时权限和公开图库的审核范围，避免共享缓存越权。
+        return listPictureVOByPage(pictureQueryRequest, request);
     }
 
 
@@ -348,10 +301,17 @@ public class PictureController {
         ThrowUtils.throwIf(pictureId == null || pictureId <= 0, ErrorCode.PARAMS_ERROR);
         Picture oldPicture = pictureService.getById(pictureId);
         ThrowUtils.throwIf(oldPicture == null, ErrorCode.NOT_FOUND_ERROR);
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+        User loginUser = userService.getLoginUser(request);
+        getPictureViewPermissions(oldPicture, loginUser);
         //webp格式不能百度识图还能调用cos云存储本身自带的方法转换为其他格式
         String url = oldPicture.getUrl()+"?imageMogr2/format/png";
-        List<ImageSearchResult> resultList = ImageSearchApiFacade.searchImage(url);
+        List<ImageSearchResult> resultList = searchImages(url);
         return ResultUtils.success(resultList);
+    }
+
+    protected List<ImageSearchResult> searchImages(String url) {
+        return ImageSearchApiFacade.searchImage(url);
     }
 
     /**

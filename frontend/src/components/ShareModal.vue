@@ -1,5 +1,5 @@
 <template>
-  <a-modal v-model:visible="visible" title="分享图片" :footer="false" @cancel="closeModal">
+  <a-modal v-model:open="visible" title="分享图片" :footer="false" @cancel="closeModal">
     <h4>复制分享链接</h4>
     <a-typography-link copyable>
       {{ link }}
